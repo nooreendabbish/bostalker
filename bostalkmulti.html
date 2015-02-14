@@ -1,0 +1,207 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>GitHub Public Event Timing</title>
+  <style>
+
+body {
+  font: 16px sans-serif;
+}
+
+.arc path {
+  stroke: #fff;
+}
+
+</style>
+  
+</head>
+<body>
+  Github username: <input type="text" id="target"><br>
+  <button id="PreviousButton">Previous</button>
+  <button id="NextButton">Next</button>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js" ></script>
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="moment.js"></script>
+  <script>
+    var username = "mbostock";
+    var currentURL = "https://api.github.com/users/"+username+"/events/public";
+
+var allEvents = [];
+var dayCount = 0;
+var starts = [0];
+
+function getHeader(currentPageURL) {
+
+  function getAllData(thisURL){
+    $.ajax({
+        type: "get",
+        url: thisURL,
+        dataType: "json",
+        success: function(data, textStatus, xhr) {
+
+            var h = xhr.getResponseHeader("Link");
+            data.forEach(function(event) {allEvents.push(event);});
+            //appendEventsFromData(data);
+            var theurl = extractURLFromHeader(h);
+          
+            currentURL = theurl;
+          
+            if (h.indexOf("rel=\"next\"") > -1) {
+              getAllData(currentURL);
+            }else {
+            while (starts[starts.length-1] != allEvents.length){
+             starts.push(parseEvents(starts[starts.length-1], allEvents));
+            }
+            makechart(allEvents.slice(starts[dayCount],starts[dayCount+1])); 
+
+            
+          }
+    }
+  });
+};
+  
+  getAllData(currentPageURL);
+  
+}
+
+function extractURLFromHeader(header) {
+
+    var urlPattern = /\<([^<]+)\>/;
+    return urlPattern.exec(header)[1].toString();
+};
+
+/*function appendEventsFromData(data) {
+    var events = {};
+    for (i = 0; i < data.length; i++) {
+        events["time"] = data[i]["created_at"];
+        events["type"] = data[i]["type"];
+    allEvents.push(events);
+    }
+};*/
+
+function rectDay(rectEvents){
+  
+};
+
+function donutDay(donutEvents){
+  
+};
+    
+function parseEvents(first, arrayIn){
+var endevent = 0;
+firstday = (moment(arrayIn[first].created_at).date());
+eventday = firstday;
+while (eventday == firstday && endevent+first < (arrayIn.length) ){
+
+      eventday = (moment(arrayIn[first+endevent].created_at).date());
+      endevent += 1;
+}
+return (endevent+first); 
+};
+    
+function makechart(eventdata){
+
+var width = 960,
+    height = 500,
+    radius = 250,//Math.min(width, height) / 2,
+    labelr = radius +40;
+
+var color = d3.scale.category10();
+color.domain(["GollumEvent","CreateEvent","PushEvent", "PullEvent","DeleteEvent"]);
+
+  var cScale = d3.scale.linear().domain([0, 24]).range([0, 2 * Math.PI]);
+  
+var arc = d3.svg.arc()
+    .outerRadius(radius - 10)
+    .innerRadius(radius - 70)
+    .startAngle(function(d){
+      return cScale(moment(eventdata[0].created_at).hours()+(Date.parse(d.created_at) -Date.parse(eventdata[0].created_at))/(1000*60*60));})
+    .endAngle(function(d){return cScale(moment(eventdata[0].created_at).hours()+(Date.parse(d.created_at) -Date.parse(eventdata[0].created_at))/(1000*60*60));});
+
+var thedate = moment(eventdata[0].created_at).format("dddd, MMMM Do YYYY");
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+  .append("g")
+    .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+var tooltip = d3.select("body")
+  .append("div")
+	.style("position", "absolute")
+	.style("z-index", "10")
+	.style("visibility", "hidden")
+	.text("hello tooltip");
+  
+  var g = svg.selectAll(".arc")
+      .data(eventdata)
+    .enter().append("g")
+      .attr("class", "arc");
+
+  g.append("path")
+      .attr("d", arc)
+      .style("stroke", function(d) { return color(d.type); })
+      .attr("stroke-width", 1)
+      .on("mouseover", function(d){return tooltip.style("visibility", "visible"), tooltip.text(moment(d.created_at).format("h:mm a \n")+d.type);})
+	.on("mousemove", function(){return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+	.on("mouseout", function(){return tooltip.style("visibility", "hidden");});
+;
+
+  g.append("circle")
+   .attr("fill", "none")
+   .attr("stroke","lightgray")
+   .attr("cx", 0)
+   .attr("cy", 0)
+   .attr("r", radius - 10);
+  
+    g.append("circle")
+   .attr("fill", "none")
+   .attr("stroke","lightgray")
+   .attr("cx", 0)
+   .attr("cy", 0)
+   .attr("r", radius - 70);
+  
+  g.append("text")
+  .attr("x", -70)
+  .attr("y", 0)
+  .text("Date: "+thedate)
+  
+}
+getHeader(currentURL);
+
+function clearsvg(){
+  d3.select("svg").remove();
+};
+
+
+    
+$("#PreviousButton").click(function(){
+  if (dayCount < (starts.length-2)){
+    clearsvg();
+    dayCount += 1;
+    makechart(allEvents.slice(starts[dayCount],starts[dayCount+1]));
+  }
+});
+  
+$("#NextButton").click(function(){
+  if (dayCount > 0){
+    clearsvg();
+    dayCount -= 1;
+    makechart(allEvents.slice(starts[dayCount],starts[dayCount+1]));
+  }
+});  
+    
+$( "#target" ).keypress(function( event ) {
+  if ( event.which == 13 ) {
+     username = $("#target").val();
+     clearsvg();
+     allEvents = [];
+     dayCount = 0;
+     starts = [0];
+    currentURL = "https://api.github.com/users/"+username+"/events/public";
+     getHeader(currentURL);
+  }
+});
+    
+  </script>
+</body>
+</html>    

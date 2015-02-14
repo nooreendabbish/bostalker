@@ -1,0 +1,142 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Bostalker</title>
+</head>
+<body>
+  <button id="get">Get Next Page</button>
+    <p id="log">Log</p>
+  <button id="makegraph">Graph Activity</button>
+  <svg id="svg_donut"></svg>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js" ></script>
+  <script src="moment.js"></script>
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script>
+  var currentURL = "https://api.github.com/users/mbostock/events/public";
+
+  var allEvents = [];
+  var oneDay = [];
+
+function getHeader(currentPageURL) {
+
+    $.ajax({
+        type: "get",
+        url: currentPageURL,
+        dataType: "json",
+        success: function(data, textStatus, xhr) {
+
+            var h = xhr.getResponseHeader("Link");
+            appendEventsFromData(data);
+            addDuration();
+          
+            var theurl = extractURLFromHeader(h);
+
+            $('#log').append("<p>" + theurl + "<br/>" + printEvents() + "</p>");
+
+            currentURL = theurl;
+        }
+    });
+}
+    
+function addDuration(){
+var diff = 0;
+  for (i = 0; i < allEvents.length; i++){
+    if (i == allEvents.length-1) {
+      diff = 0;
+    }else{
+    diff = (allEvents[i].time - allEvents[i+1].time);}
+    allEvents[i]["duration"] = diff/(1000*60*60);
+  }
+};
+    
+function extractURLFromHeader(header) {
+
+    var urlPattern = /\<([^<]+)\>/
+    return urlPattern.exec(header)[1].toString();
+};
+
+function printEvents(event){
+  var eventString = ""
+  allEvents.forEach(function(event){
+  eventString += event.time +", "+ event.type.toString() +"\n";
+  });
+  return eventString;
+};
+    
+function appendEventsFromData(data) {
+
+    data.forEach( function(entry) {
+        var events = { };
+        events["time"] = Date.parse(entry["created_at"]);
+        events["type"] = entry["type"];
+    allEvents.push(events);
+    });
+};
+
+$('button#get').click(function() {
+    console.log(currentURL);
+    getHeader(currentURL);
+
+});
+
+$('button#makegraph').click(function() {
+   makeDonut();
+});
+
+function makeDonut(){
+var cScale = d3.scale.linear().domain([0, 24]).range([0, 2 * Math.PI]);
+
+data = makeDonutData();
+
+var vis = d3.select("#svg_donut");
+
+var arc = d3.svg.arc()
+.innerRadius(50)
+.outerRadius(100)
+.startAngle(function(d){return cScale(d[0]);})
+.endAngle(function(d){return cScale(d[1]);});
+
+vis.selectAll("path")
+.data(data)
+.enter()
+.append("path")
+.attr("d", arc)
+.style("fill", function(d){return d[2];})
+.attr("transform", "translate(300,200)");
+
+};
+
+function makeDonutData(){
+var MDD = [];
+var eventDict = {"IssueCommentEvent":"#321414",
+                 "CreateEvent":"#7FFF00",
+                 "PushEvent":"#006400",
+                 "PullRequestEvent":"#D73B3E",
+                 "GollumEvent":"#FF0000",
+                 "DeleteEvent":"#F4C2C2"}
+for (i=0; i<allEvents.length; i++){
+ var segment = [];
+ if (i==0){ segment[0] = 0; } 
+  else { segment[0] = MDD[i-1][1]};
+ segment[1] =  segment[0]+allEvents[i].duration;
+ if (allEvents[i].type in eventDict) { 
+ segment[2] = eventDict[allEvents[i].type];
+ }else{  segment[2] = "#FFFFFF";}
+  MDD[i] = segment;
+}
+  console.log(MDD);
+  var i = 0;
+  while (MDD[i][1] < 24){
+    i++
+      }
+  return MDD.slice(0,i);
+
+};
+
+    
+    
+    
+  
+  </script>
+</body>
+</html>    
